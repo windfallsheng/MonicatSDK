@@ -1,0 +1,12 @@
+<component name="libraryTable">
+  <library name="andfix-0.4.0">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../HotFixTool/build/intermediates/exploded-aar/com.alipay.euler/andfix/0.4.0/jars/classes.jar!/" />
+      <root url="file://$PROJECT_DIR$/../HotFixTool/build/intermediates/exploded-aar/com.alipay.euler/andfix/0.4.0/res" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.alipay.euler/andfix/0.4.0/143d15cca629d570193a0b602cf8b9efbc7e5290/andfix-0.4.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
