@@ -36,14 +36,14 @@ public class MySupportApplication extends Application {
 		// 针对派信接口需要，添加的统计启动次数标识
 		.setType(16)
 		.build();
-// ( 2 ) 设置配置参数（可以在其它地方再次修改这些参数配置，详见 三、4 说明）。
-   MonicatManager.getInstance().init(config);
-// ( 3 ) 打开Monicat的监控功能
-   MonicatManager.getInstance().monitor();
-// 配置完成。
-
+        // ( 2 ) 设置配置参数（可以在其它地方再次修改这些参数配置，详见 三、4 说明）。
+        MonicatManager.getInstance().init(config);
+	// ( 3 ) 打开Monicat的监控功能
+	MonicatManager.getInstance().monitor();
+	// 配置完成。
     }
 }
+
 
 注意：
 1)	如果设置上报策略为TIMED_TASK（定时上报）或者PERIOD（间隔上报）时需要在manifest中注册以下这个服务：
