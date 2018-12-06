@@ -13,7 +13,7 @@ public class MySupportApplication extends Application {
 // 配置开始：
 // ( 1 ) 初始化配置参数
 	Configuration config = new Configuration
-			// 传入Application的Context实例
+	      // 传入Application的Context实例
               .Builder(this)
 		// 设置是否打开启动次数统计功能，默认为true
         	.setOnStartNum(true)
