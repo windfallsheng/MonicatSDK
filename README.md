@@ -209,6 +209,8 @@ int appStatus = MonicatManager.getInstance().app_status;
 特别说明：
 有关项目中SQLite数据库缓存数据及其它CRUD相关的功能及网络请求的功能，在本项目中只是粗略实现，未优化，有需要时可以进行修改，替换为其它ORM框架，完善网络请求的代码封装。
 
+see [Blog](https://blog.csdn.net/Silence1515/article/details/84848759)
+
 由于作者水平有限，语言描述及代码实现中难免有纰漏，望各位看官多提宝贵意见！
 
 Hello , World !
