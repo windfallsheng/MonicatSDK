@@ -33,8 +33,6 @@ public class MySupportApplication extends Application {
 		// 设置开启debug模式，输出打印日志，默认为null
 		// 没有设置时，会根据外层项目app的模式（debug or release）模式来选择
 		//.setDebug(false)
-		// 针对派信接口需要，添加的统计启动次数标识
-		.setType(16)
 		.build();
         // ( 2 ) 设置配置参数（可以在其它地方再次修改这些参数配置，详见 三、4 说明）。
         MonicatManager.getInstance().init(config);
