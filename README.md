@@ -7,33 +7,29 @@ public class MySupportApplication extends Application {
 	@Override
     	public void onCreate() {
         	super.onCreate();
-		// onCreate()方法里完成配置参数，如下示例：
-    }
-}
-// 配置开始：
-// ( 1 ) 初始化配置参数
+		// ( 1 ) 初始化配置参数
 	Configuration config = new Configuration
-	      // 传入Application的Context实例
+			// 传入Application的Context实例
               .Builder(this)
 		// 设置是否打开启动次数统计功能，默认为true
         	.setOnStartNum(true)
 		// 设置前后台切换的间隔时间（单位：毫秒）最大值，默认为30s
 		.setIntervalTime(5  *  1000)
-              // 设置数据上报策略，默认为INSTANT 即时上报数据
+                // 设置数据上报策略，默认为INSTANT 即时上报数据
 		.setUploadStrategy(UploadStrategy.INSTANT)
 		// 设置数据上报策略为定时上报
 		//.setUploadStrategy(UploadStrategy.TIMED_TASK)
 		// 设置定时上报 时的小时和分钟，小时格式：大于等于0，小于24，
 		// 分钟格式：大于等于0，小于60。
-             //.setTriggerTime(13,  42)
+                //.setTriggerTime(13,  42)
 		// 设置数据上报策略为间隔上报
-//.setUploadStrategy(UploadStrategy.PERIOD)
+		//.setUploadStrategy(UploadStrategy.PERIOD)
 		// 设置间隔上报 的间隔时间（单位：毫秒），默认为30分钟，最小值为5分钟
-             //.setPeriodTime(5  *  60  *  1000)
+                //.setPeriodTime(5  *  60  *  1000)
 		// 设置数据上报策略为批量上报
 		//.setUploadStrategy(UploadStrategy.BATCH)
 		// 设置批量值，默认为50条
-//.setBatchValue(30)
+		//.setBatchValue(30)
 		// 设置开启debug模式，输出打印日志，默认为null
 		// 没有设置时，会根据外层项目app的模式（debug or release）模式来选择
 		//.setDebug(false)
@@ -45,6 +41,9 @@ public class MySupportApplication extends Application {
 // ( 3 ) 打开Monicat的监控功能
    MonicatManager.getInstance().monitor();
 // 配置完成。
+
+    }
+}
 
 注意：
 1)	如果设置上报策略为TIMED_TASK（定时上报）或者PERIOD（间隔上报）时需要在manifest中注册以下这个服务：
