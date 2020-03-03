@@ -3,17 +3,17 @@ package com.windfallsheng.monicat.db.service;
 import android.content.Context;
 
 import com.windfallsheng.monicat.action.MonicatManager;
-import com.windfallsheng.monicat.command.Constants;
-import com.windfallsheng.monicat.db.dao.AppStartupDaoImpl;
+import com.windfallsheng.monicat.common.MonicatConstants;
+import com.windfallsheng.monicat.db.dao.SessionInfoDaoImpl;
 import com.windfallsheng.monicat.db.dao.DeviceInfoDaoImpl;
 import com.windfallsheng.monicat.db.dao.IBaseDao;
-import com.windfallsheng.monicat.db.sqlitehelper.StatisticsSQLiteHelper;
-import com.windfallsheng.monicat.model.AppStartupEntity;
+import com.windfallsheng.monicat.db.sqlite.StatisticsSQLiteHelper;
+import com.windfallsheng.monicat.model.SessionInfoEntity;
 import com.windfallsheng.monicat.model.DeviceInfo;
 import com.windfallsheng.monicat.model.Param;
 import com.windfallsheng.monicat.model.ParamMap;
-import com.windfallsheng.monicat.utils.LogUtils;
-import com.windfallsheng.monicat.utils.SystemUtils;
+import com.windfallsheng.monicat.util.LogUtils;
+import com.windfallsheng.monicat.util.SystemUtils;
 
 import java.io.Serializable;
 import java.util.List;
@@ -25,24 +25,25 @@ import java.util.Map;
  * Author: lzsheng
  * <p>
  * Description: 会话数据(包括应用启动数据)，设备信息数据的本地数据库的业务操作类
- * 调用{@link AppStartupDaoImpl } {@link DeviceInfoDaoImpl }对表的CRUD操作，完成必要的业务逻辑
+ * 调用{@link SessionInfoDaoImpl } {@link DeviceInfoDaoImpl }对表的CRUD操作，完成必要的业务逻辑
  * <p>
  * Version:
  */
-public class SessionStatisticsService implements IBaseService<AppStartupEntity> {
+public class SessionStatisticsService implements IBaseService<SessionInfoEntity> {
 
-    private static IBaseService sDeviceInfoService;
-    private static IBaseDao sAppStartupDaoImpl;
+    private final String TAG = "SessionStatisticsService";
+    private static IBaseDao sDeviceInfoDaoImpl;
+    private static IBaseDao sSessionInfoDaoImpl;
     private volatile static SessionStatisticsService instance = null;
 
     private SessionStatisticsService() {
     }
 
     public static SessionStatisticsService getInstance(Context context) {
-        sAppStartupDaoImpl = AppStartupDaoImpl.getInstance(context);
-        sDeviceInfoService = DeviceInfoService.getInstance(context);
+        sSessionInfoDaoImpl = SessionInfoDaoImpl.getInstance(context);
+        sDeviceInfoDaoImpl = DeviceInfoDaoImpl.getInstance(context);
         if (instance == null) {
-            synchronized (AppStartupDaoImpl.class) {
+            synchronized (SessionInfoDaoImpl.class) {
                 if (instance == null) {
                     instance = new SessionStatisticsService();
                 }
@@ -54,24 +55,26 @@ public class SessionStatisticsService implements IBaseService<AppStartupEntity> 
     /**
      * 保存到记录表中
      *
-     * @param startupNumEntity
+     * @param sessionInfo
      * @return 返回插入的数据的主键ID
      */
     @Override
-    public int save(AppStartupEntity startupNumEntity) {
+    public int save(SessionInfoEntity sessionInfo) {
         ParamMap paramMap = new ParamMap()// 添加数据库查询条件
                 .setOrderAscMap(StatisticsSQLiteHelper.COLUMN_DEVICE_INFO_ID);
-        List<DeviceInfo> deviceInfos = sDeviceInfoService.queryAllByMap(paramMap);
+        List<DeviceInfo> deviceInfos = sDeviceInfoDaoImpl.queryAllByMap(paramMap);
+        LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:save#deviceInfos=" + deviceInfos);
         int deviceInfoId = 0;
         if (deviceInfos != null) { // 判断设备信息在本地库中有没有存储信息，若有则取出，没有则重新获取并存到数据库中
             deviceInfoId = deviceInfos.get(0).getDevice_info_id();
         } else {
             DeviceInfo deviceInfo = SystemUtils.getDeviceInfo(MonicatManager.getInstance().getContext());
-            deviceInfoId = sDeviceInfoService.save(deviceInfo);
+            LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:save#deviceInfo=" + deviceInfo);
+            deviceInfoId = sDeviceInfoDaoImpl.save(deviceInfo);
         }
         if (deviceInfoId > 0) {
-            startupNumEntity.setDeviceInfoId(deviceInfoId);
-            return sAppStartupDaoImpl.save(startupNumEntity);
+            sessionInfo.setDeviceInfoId(deviceInfoId);
+            return sSessionInfoDaoImpl.save(sessionInfo);
         }
         return 0;
     }
@@ -83,13 +86,13 @@ public class SessionStatisticsService implements IBaseService<AppStartupEntity> 
      *                   在DAO的实现层中会有条件语句拼接的实现
      */
     @Override
-    public List<AppStartupEntity> queryAllByMap(ParamMap conditions) {
-        return sAppStartupDaoImpl.queryAllByMap(conditions);
+    public List<SessionInfoEntity> queryAllByMap(ParamMap conditions) {
+        return sSessionInfoDaoImpl.queryAllByMap(conditions);
     }
 
     @Override
     public int queryCountByMap(ParamMap conditions) {
-        return sAppStartupDaoImpl.queryCountByMap(conditions);
+        return sSessionInfoDaoImpl.queryCountByMap(conditions);
     }
 
     /**
@@ -103,9 +106,9 @@ public class SessionStatisticsService implements IBaseService<AppStartupEntity> 
      */
     @Override
     public void updataAdjacentData(Serializable id, ParamMap conditionUpdate, ParamMap conditionQuery, int lastOrNext) {
-        AppStartupEntity appStartupEntity = (AppStartupEntity) sAppStartupDaoImpl.queryAdjacentData(id, conditionQuery, lastOrNext);
+        SessionInfoEntity appStartupEntity = (SessionInfoEntity) sSessionInfoDaoImpl.queryAdjacentData(id, conditionQuery, lastOrNext);
         if (appStartupEntity != null) {
-            LogUtils.d(Constants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_appStartupEntity==" + appStartupEntity);
+            LogUtils.d(MonicatConstants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_appStartupEntity==" + appStartupEntity);
             int num = 0;// 用来标识是不是需要修改操作
             List<Param> params = conditionUpdate.getUpdateList();
             for (Param param : params) {// 判断数据库的字段值和要修改的值是不是相同，将不相同的值修改
@@ -114,7 +117,7 @@ public class SessionStatisticsService implements IBaseService<AppStartupEntity> 
                 Map<String, Object> mapping = appStartupEntity.getMapping();
 //                Log.d(Constants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_mapping==" + mapping);
                 Object fieldObj = mapping.get(key); // 得到实体对象对应的属性值
-                LogUtils.d(Constants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_fieldObj==" + fieldObj.toString());
+                LogUtils.d(MonicatConstants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_fieldObj==" + fieldObj.toString());
                 if (value instanceof String) { // todo 对数据类型的判断需要完善
                     if (value.equals((String) fieldObj)) { // 判断从数据库的对象字段值和要修改的值是不是相同
                         params.remove(param); // 数据库的字段值和要修改的值是相同的，不需要再次修改，所以需要从集合中移除，因为可能的情况是，有些字段需要修改，有些字段不需要修改，所以要移除
@@ -130,12 +133,12 @@ public class SessionStatisticsService implements IBaseService<AppStartupEntity> 
                 }
             }
             if (num > 0) {// num > 0 说明有需要修改操作的字段
-                LogUtils.d(Constants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_appStartupEntity.getStartupId()==null" + appStartupEntity.getStartupId());
-                conditionUpdate.setAndInMap(StatisticsSQLiteHelper.COLUMN_STARTUP_ID, appStartupEntity.getStartupId());
-                sAppStartupDaoImpl.updateByMap(conditionUpdate);
+                LogUtils.d(MonicatConstants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_appStartupEntity.getSessionId()==null" + appStartupEntity.getSessionId());
+                conditionUpdate.setAndInMap(StatisticsSQLiteHelper.COLUMN_SESSION_ID, appStartupEntity.getSessionId());
+                sSessionInfoDaoImpl.updateByMap(conditionUpdate);
             }
         } else {
-            LogUtils.d(Constants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_appStartupEntity==null");
+            LogUtils.d(MonicatConstants.SDK_NAME, "SessionStatisticsService-->updataAdjacentData()_appStartupEntity==null");
         }
     }
 
@@ -147,12 +150,12 @@ public class SessionStatisticsService implements IBaseService<AppStartupEntity> 
      */
     @Override
     public void deleteByMap(ParamMap conditions) {
-        sAppStartupDaoImpl.deleteByMap(conditions);
+        sSessionInfoDaoImpl.deleteByMap(conditions);
     }
 
     @Override
-    public AppStartupEntity queryById(Serializable id) {
-        return (AppStartupEntity) sAppStartupDaoImpl.queryById(id);
+    public SessionInfoEntity queryById(Serializable id) {
+        return (SessionInfoEntity) sSessionInfoDaoImpl.queryById(id);
     }
 
     /**
@@ -163,11 +166,11 @@ public class SessionStatisticsService implements IBaseService<AppStartupEntity> 
      */
     @Override
     public void updateByMap(ParamMap conditions) {
-        sAppStartupDaoImpl.updateByMap(conditions);
+        sSessionInfoDaoImpl.updateByMap(conditions);
     }
 
     @Override
-    public void update(AppStartupEntity entity) {
+    public void update(SessionInfoEntity entity) {
 
     }
 

@@ -1,14 +1,12 @@
 package com.windfallsheng.monicat.action;
 
-import com.windfallsheng.monicat.command.Constants;
-import com.windfallsheng.monicat.command.UploadStrategy;
-import com.windfallsheng.monicat.listener.BatchDataChangeListener;
-import com.windfallsheng.monicat.listener.UploadDataObserver;
+import com.windfallsheng.monicat.common.MonicatConstants;
+import com.windfallsheng.monicat.model.BatchInfo;
 import com.windfallsheng.monicat.model.EventInfoEntity;
 import com.windfallsheng.monicat.model.Properties;
 import com.windfallsheng.monicat.net.BaseCallBack;
 import com.windfallsheng.monicat.net.BaseOkHttpClient;
-import com.windfallsheng.monicat.utils.LogUtils;
+import com.windfallsheng.monicat.util.LogUtils;
 
 import java.io.IOException;
 
@@ -33,36 +31,7 @@ import okhttp3.Call;
  * <p>
  * Version:
  */
-public class EventStatisticsManager implements UploadDataObserver {
-
-    private BatchDataChangeListener mBatchDataChangeListener;
-    private boolean hasInitFinished;       // 标识查询数据库数据总和是否执行完成
-
-    public void setBatchDataChangeListener(BatchDataChangeListener batchDataChangeListener) {
-        mBatchDataChangeListener = batchDataChangeListener;
-    }
-
-    /**
-     * 初始化一些数据；
-     * 查询本地数据库中的数据总和；
-     */
-    public void initBatchData() {
-        UploadStrategy uploadStrategy = MonicatManager.getInstance().getConfig().uploadStrategy;
-        if (uploadStrategy == UploadStrategy.BATCH) {
-            hasInitFinished = false;
-            int batchCount = 0;
-            // batchCount = 数据库查询的count值
-            notifyBatchDataChanged(batchCount);
-            hasInitFinished = true;
-        }
-    }
-
-    @Override
-    public void startUploadData() {
-        LogUtils.d(Constants.SDK_NAME, "EventStatisticsManager-->startUploadData()");
-        // TODO: 2018/5/9 查询对应表中的数据
-        uploadEventInfos();
-    }
+class EventStatisticsManager extends BaseStatisticsManager {
 
     /**
      * 保存数据到数据库，并且根据上传策略完成必要的逻辑处理
@@ -77,43 +46,41 @@ public class EventStatisticsManager implements UploadDataObserver {
         synchronized (this) {
             EventInfoEntity eventInfoEntity = new EventInfoEntity(className, eventName, triggeringTime,
                     endTime, properties);
-            LogUtils.d(Constants.SDK_NAME, "EventStatisticsManager-->saveEventInfo()_eventInfoEntity==" + eventInfoEntity);
+            LogUtils.d(MonicatConstants.SDK_NAME, "EventStatisticsManager-->saveEventInfo()_eventInfoEntity==" + eventInfoEntity);
 
 //      TODO: 2018/5/9 保存到本地数据库中
             // …………eventInfoEntity的properties属性可直接转为json串存入数据库
         }
 
-        UploadStrategy uploadStrategy = MonicatManager.getInstance().getConfig().uploadStrategy;
-        if (uploadStrategy == UploadStrategy.BATCH) {
-            if (hasInitFinished) { // 当初始化执行完成之后，再执行新增数据的逻辑
-                // 新增一条数据成功时，传递参数值为1;
-                notifyBatchDataChanged(1);
-            }
-        } else if (uploadStrategy == UploadStrategy.INSTANT) {
-            LogUtils.d(Constants.SDK_NAME, "EventStatisticsManager-->saveEventInfo()_INSTANT");
-            uploadEventInfos();
-        }
+        handleStatisticsByStrategy();
+
     }
 
-    /**
-     * 回调 {@link MonicatManager#onBatchDataChanged(int)}方法
-     *
-     * @param batchCount
-     * @see MonicatManager#onBatchDataChanged
-     */
-    private void notifyBatchDataChanged(int batchCount) {
-        if (batchCount > 0 && mBatchDataChangeListener != null) {
-            mBatchDataChangeListener.onBatchDataChanged(batchCount);
-        }
-        LogUtils.d(Constants.SDK_NAME, "EventStatisticsManager-->notifyBatchDataChanged()_batchCount==" + batchCount);
+    @Override
+    public void uploadData() {
+        LogUtils.d(MonicatConstants.SDK_NAME, "EventStatisticsManager-->uploadData()");
+        uploadCacheData();
+    }
+
+
+    @Override
+    int queryCacheTotalCount() {
+        return 0;
+    }
+
+    @Override
+    BatchInfo newBatchInfo(int count) {
+        return new BatchInfo(UserStatisticsManager.class.getName(), count);
     }
 
     /**
      * 上传启动数据到服务器
      */
-    private void uploadEventInfos() {
-        String url = Constants.SERVER_HOST;
-        LogUtils.d(Constants.SDK_NAME, "EventStatisticsManager-->uploadEventInfos()_url=" + url);
+    @Override
+    void uploadCacheData() {
+        // TODO: 2020/2/6 查询对应表中的数据
+        String url = MonicatConstants.SERVER_HOST;
+        LogUtils.d(MonicatConstants.SDK_NAME, "EventStatisticsManager-->uploadEventInfos()_url=" + url);
         BaseOkHttpClient.newBuilder()
                 .addParam("key", "value")
                 .isJsonParam(false)
@@ -123,7 +90,7 @@ public class EventStatisticsManager implements UploadDataObserver {
                 .enqueue(new BaseCallBack() {
                              @Override
                              public void onSuccess(Object o) {
-                                 LogUtils.d(Constants.SDK_NAME, "EventStatisticsManager-->uploadEventInfos()_onSuccess()=" /*+ o.toString()*/);
+                                 LogUtils.d(MonicatConstants.SDK_NAME, "EventStatisticsManager-->uploadEventInfos()_onSuccess()=" /*+ o.toString()*/);
                                  //{"rt":0,"rtInfo":"正确","data":null}
 //                                 Gson gson = new Gson();
 //                                 ResponseEntity responseEntity = gson.fromJson(o.toString(), ResponseEntity.class);
@@ -138,12 +105,12 @@ public class EventStatisticsManager implements UploadDataObserver {
 
                              @Override
                              public void onError(int code) {
-                                 LogUtils.d(Constants.SDK_NAME, "EventStatisticsManager-->uploadEventInfos()_onError()=" + code);
+                                 LogUtils.d(MonicatConstants.SDK_NAME, "EventStatisticsManager-->uploadEventInfos()_onError()=" + code);
                              }
 
                              @Override
                              public void onFailure(Call call, IOException e) {
-                                 LogUtils.d(Constants.SDK_NAME, "EventStatisticsManager-->uploadEventInfos()_onFailure()=" + e.toString());
+                                 LogUtils.d(MonicatConstants.SDK_NAME, "EventStatisticsManager-->uploadEventInfos()_onFailure()=" + e.toString());
                              }
                          }
                 );

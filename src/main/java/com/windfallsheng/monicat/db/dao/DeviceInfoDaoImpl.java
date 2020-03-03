@@ -5,12 +5,12 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
-import com.windfallsheng.monicat.command.Constants;
-import com.windfallsheng.monicat.db.sqlitehelper.StatisticsSQLiteHelper;
+import com.windfallsheng.monicat.common.MonicatConstants;
+import com.windfallsheng.monicat.db.sqlite.StatisticsSQLiteHelper;
 import com.windfallsheng.monicat.model.DeviceInfo;
 import com.windfallsheng.monicat.model.ParamMap;
-import com.windfallsheng.monicat.utils.LogUtils;
-import com.windfallsheng.monicat.utils.SQLUtils;
+import com.windfallsheng.monicat.util.LogUtils;
+import com.windfallsheng.monicat.util.SQLUtils;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -54,19 +54,19 @@ public class DeviceInfoDaoImpl implements IBaseDao<DeviceInfo> {
             ContentValues values = new ContentValues();
             values.put(StatisticsSQLiteHelper.COLUMN_DEVICE_UNIQUE_ID, deviceInfo.getDeviceUniqueId());
             values.put(StatisticsSQLiteHelper.COLUMN_DEVICE_ID_TYPE, deviceInfo.getDeviceIdType());
-            LogUtils.d(Constants.SDK_NAME, "DeviceInfoDaoImpl-->save_values==" + values.toString());
+            LogUtils.d(MonicatConstants.SDK_NAME, "DeviceInfoDaoImpl-->save_values==" + values.toString());
             db.insert(StatisticsSQLiteHelper.TABLE_DEVICE_INFO, "id", values);
             StringBuffer sbSQL = new StringBuffer();
             sbSQL.append("SELECT LAST_INSERT_ROWID() From ").append(StatisticsSQLiteHelper.TABLE_DEVICE_INFO);
 //            sbSQL.append("SELECT MAX(").append(StatisticsSQLiteHelper.COLUMN_DEVICE_INFO_ID).append(") FROM ")
 //                    .append(StatisticsSQLiteHelper.TABLE_DEVICE_INFO);
             String sql = sbSQL.toString();
-            LogUtils.d(Constants.SDK_NAME, "DeviceInfoDaoImpl-->last_insert_rowid()_sql==" + sql);
+            LogUtils.d(MonicatConstants.SDK_NAME, "DeviceInfoDaoImpl-->last_insert_rowid()_sql==" + sql);
             Cursor cursor = db.rawQuery(sql, null);
             int primaryKeyId = 0;
             if (cursor.moveToFirst()) {
                 primaryKeyId = cursor.getInt(0);
-                LogUtils.d(Constants.SDK_NAME, "DeviceInfoDaoImpl-->save_last_insert_rowid==" + primaryKeyId);
+                LogUtils.d(MonicatConstants.SDK_NAME, "DeviceInfoDaoImpl-->save_last_insert_rowid==" + primaryKeyId);
             }
             db.setTransactionSuccessful();
             return primaryKeyId;
@@ -107,7 +107,7 @@ public class DeviceInfoDaoImpl implements IBaseDao<DeviceInfo> {
             String sql = sbSQL.toString();
             // sbSQL = SELECT device_info_id, device_unique_id, device_id_type
             // WHERE  1 = 1  AND device_unique_id = '8484454118855' AND device_id_type = 6);
-            LogUtils.d(Constants.SDK_NAME, "DeviceInfoDaoImpl-->queryAllByMap()_sql==" + sql);
+            LogUtils.d(MonicatConstants.SDK_NAME, "DeviceInfoDaoImpl-->queryAllByMap()_sql==" + sql);
             Cursor cursor = db.rawQuery(sql, null);
             while (cursor.moveToNext()) {
                 int index = 0;
@@ -142,7 +142,7 @@ public class DeviceInfoDaoImpl implements IBaseDao<DeviceInfo> {
             String sql = sbSQL.toString();
             // sbSQL = SELECT COUNT(*)
             // WHERE  1 = 1  AND device_unique_id = '8484454118855' AND device_id_type = 6);
-            LogUtils.d(Constants.SDK_NAME, "DeviceInfoDaoImpl-->queryCountByMap()_sql==" + sql);
+            LogUtils.d(MonicatConstants.SDK_NAME, "DeviceInfoDaoImpl-->queryCountByMap()_sql==" + sql);
             Cursor cursor = db.rawQuery(sql, null);
             while (cursor.moveToNext()) {
                 count = cursor.getInt(0);

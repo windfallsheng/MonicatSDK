@@ -4,14 +4,15 @@ import android.app.Activity;
 import android.app.Application;
 import android.os.Bundle;
 
-import com.windfallsheng.monicat.command.Constants;
+import com.windfallsheng.monicat.common.MonicatConstants;
 import com.windfallsheng.monicat.listener.ActivityLifecycleObserver;
 import com.windfallsheng.monicat.listener.SwitchEventObserver;
 import com.windfallsheng.monicat.model.ActivityLifecycle;
 import com.windfallsheng.monicat.model.SwitchEvent;
-import com.windfallsheng.monicat.utils.LogUtils;
+import com.windfallsheng.monicat.util.LogUtils;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -29,15 +30,16 @@ import java.util.Map;
  * <p>
  * Version:
  */
-public class SwitchEventManager implements Application.ActivityLifecycleCallbacks {
+class SwitchEventManager implements Application.ActivityLifecycleCallbacks {
 
     //    private static SwitchEventManager instance = null;
     private int mActivityCount;
-    private long foregroundtTime;
+    private long foregroundTime;
     private long backgroundTime;
     private boolean isForeground;
+    private SessionStatisticsManager mSessionStatisticsManager;
     /**
-     * {@link PageStatisticsManager#mPageMaps}
+     * {@link PageStatisticsManager#mCachePages}
      * 即：存放注册了记录页面打开状态的activity的全路径名称
      */
     private Map<String, String> mPageMaps;
@@ -62,80 +64,78 @@ public class SwitchEventManager implements Application.ActivityLifecycleCallback
     @Override
     public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
         String activityName = activity.getClass().getName();
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivityCreated()_activityName==" + activityName);
+        LogUtils.d(MonicatConstants.SDK_NAME, "SwitchEventManager-->onActivityCreated()_activityName==" + activityName);
     }
 
     @Override
     public void onActivityStarted(Activity activity) {
-        mActivityCount++;
         String activityName = activity.getClass().getName();
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivityStarted()_mActivityCount==" + mActivityCount);
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivityStarted()_activityName==" + activityName);
-        if (mActivityCount > 0) {// 此时表明应用在前台
-//                    foregroundtTime = System.currentTimeMillis();
-            isForeground = true;
-            foregroundtTime = TimecalibrationManager.getInstance().getCurrentServerTime();
-            SwitchEvent switchEvent = new SwitchEvent(activityName, mActivityCount, foregroundtTime, backgroundTime, isForeground);
-            notifySwitchEventChanged(switchEvent);
-        }
+        LogUtils.d(MonicatConstants.SDK_NAME, "SwitchEventManager-->onActivityStarted()_activityName==" + activityName);
     }
 
     @Override
     public void onActivityResumed(Activity activity) {
+        mActivityCount++;
         String activityName = activity.getClass().getName();
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivityResumed()_activityName==" + activityName);
+        LogUtils.d(MonicatConstants.SDK_NAME, "SwitchEventManager-->onActivityResumed()_activityName==" + activityName);
+        if (mActivityCount > 0) {// 此时表明应用在前台
+            foregroundTime = System.currentTimeMillis();
+            isForeground = true;
+//            foregroundtTime = TimecalibrationManager.getInstance().getCurrentServerTime();
+            SwitchEvent switchEvent = new SwitchEvent(activityName, mActivityCount, foregroundTime, backgroundTime, isForeground);
+            notifySwitchEventChanged(switchEvent);
+        }
         if (mPageStatisticsManager != null) {
-            mPageMaps = mPageStatisticsManager.getPageMaps();
+            mPageMaps = mPageStatisticsManager.getCachePages();
         }
         /**
          * 如果当前监听到的activity在{@link PageStatisticsManager} 的{@link mPageMaps}集合中，则发出通知，
          * 这个判断目录只针对{@link PageStatisticsManager}里判断页面开闭状态的需求，如有功能扩展，可去掉此条件限制
          */
         if (mPageMaps != null && mPageMaps.containsKey(activityName)) {
-            ActivityLifecycle activityLifecycle = new ActivityLifecycle(activityName, Constants.ON_ACTIVITY_RESUMED, isForeground);
+            ActivityLifecycle activityLifecycle = new ActivityLifecycle(activityName, MonicatConstants.ON_ACTIVITY_RESUMED, isForeground);
             notifyActivityLifecycleChanged(activityLifecycle);
         }
     }
 
     @Override
     public void onActivityPaused(Activity activity) {
+        mActivityCount--;
         String activityName = activity.getClass().getName();
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivityPaused()_activityName==" + activityName);
+        LogUtils.d(MonicatConstants.SDK_NAME, "SwitchEventManager-->onActivityPaused()_activityName==" + activityName);
+        if (mActivityCount == 0) {// 此时表明应用在后台
+            backgroundTime = System.currentTimeMillis();
+            isForeground = false;
+//            backgroundTime = TimecalibrationManager.getInstance().getCurrentServerTime();
+            SwitchEvent switchEvent = new SwitchEvent(activityName, mActivityCount, foregroundTime, backgroundTime, isForeground);
+            notifySwitchEventChanged(switchEvent);
+        }
         /**
          * 如果当前监听到的activity在{@link PageStatisticsManager} 的{@link mPageMaps}集合中，则发出通知，
          * 这个判断目录只针对{@link PageStatisticsManager}里判断页面开闭状态的需求，如有功能扩展，可去掉此条件限制
          */
         if (mPageMaps != null && mPageMaps.containsKey(activityName)) {
-            ActivityLifecycle activityLifecycle = new ActivityLifecycle(activityName, Constants.ON_ACTIVITY_PAUSED, isForeground);
+            ActivityLifecycle activityLifecycle = new ActivityLifecycle(activityName, MonicatConstants.ON_ACTIVITY_PAUSED, isForeground);
             notifyActivityLifecycleChanged(activityLifecycle);
         }
     }
 
     @Override
     public void onActivityStopped(Activity activity) {
-        mActivityCount--;
         String activityName = activity.getClass().getName();
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivityStopped()_mActivityCount==" + mActivityCount);
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivityStopped()_activityName==" + activityName);
-        if (mActivityCount == 0) {// 此时表明应用在后台
-//                    backgroundTime = System.currentTimeMillis();
-            isForeground = false;
-            backgroundTime = TimecalibrationManager.getInstance().getCurrentServerTime();
-            SwitchEvent switchEvent = new SwitchEvent(activityName, mActivityCount, foregroundtTime, backgroundTime, isForeground);
-            notifySwitchEventChanged(switchEvent);
-        }
+        LogUtils.d(MonicatConstants.SDK_NAME, "SwitchEventManager-->onActivityStopped()_activityName==" + activityName);
     }
 
     @Override
     public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
         String activityName = activity.getClass().getName();
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivitySaveInstanceState()_activityName==" + activityName);
+        LogUtils.d(MonicatConstants.SDK_NAME, "SwitchEventManager-->onActivitySaveInstanceState()_activityName==" + activityName);
     }
 
     @Override
     public void onActivityDestroyed(Activity activity) {
         String activityName = activity.getClass().getName();
-        LogUtils.d(Constants.SDK_NAME, "SwitchEventManager-->onActivityDestroyed()_activityName==" + activityName);
+        LogUtils.d(MonicatConstants.SDK_NAME, "SwitchEventManager-->onActivityDestroyed()_activityName==" + activityName);
     }
 
     /**
@@ -177,8 +177,9 @@ public class SwitchEventManager implements Application.ActivityLifecycleCallback
     protected void removeAllSwitchEventObservers() {
         synchronized (this) {
             if (mSwitchEventObservers != null && mSwitchEventObservers.size() > 0) {
-                for (SwitchEventObserver infoObserver : mSwitchEventObservers) {
-                    mSwitchEventObservers.remove(infoObserver);
+                Iterator<SwitchEventObserver> it = mSwitchEventObservers.iterator();
+                while (it.hasNext()) {
+                    it.remove();
                 }
             }
         }
@@ -239,8 +240,9 @@ public class SwitchEventManager implements Application.ActivityLifecycleCallback
     protected void removeAllActivityLifecycleObservers() {
         synchronized (this) {
             if (mActivityLifecycleObservers != null && mActivityLifecycleObservers.size() > 0) {
-                for (ActivityLifecycleObserver lifecycleObserver : mActivityLifecycleObservers) {
-                    mActivityLifecycleObservers.remove(lifecycleObserver);
+                Iterator<ActivityLifecycleObserver> it = mActivityLifecycleObservers.iterator();
+                while (it.hasNext()) {
+                    it.remove();
                 }
             }
         }

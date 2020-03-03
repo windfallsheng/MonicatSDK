@@ -2,17 +2,17 @@ package com.windfallsheng.monicat.action;
 
 import android.os.SystemClock;
 
-import com.windfallsheng.monicat.command.Constants;
+import com.windfallsheng.monicat.common.MonicatConstants;
 import com.windfallsheng.monicat.net.BaseCallBack;
 import com.windfallsheng.monicat.net.BaseOkHttpClient;
-import com.windfallsheng.monicat.utils.LogUtils;
-import com.windfallsheng.monicat.utils.TimeUtils;
+import com.windfallsheng.monicat.util.LogUtils;
+import com.windfallsheng.monicat.util.TimeUtils;
 
 import java.io.IOException;
 
 import okhttp3.Call;
 
-import static com.windfallsheng.monicat.utils.SharedPrefUtil.init;
+import static com.windfallsheng.monicat.util.SharedPrefUtil.init;
 
 
 /**
@@ -56,25 +56,25 @@ public class TimecalibrationManager {
         long currentSystemTime = SystemClock.elapsedRealtime();
         synchronized (TimecalibrationManager.class) {
             if (hasGetServerTime) {
-                LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->getCurrentServerTime()_hasGetServerTime=true_mResponServerTime==" + TimeUtils.timeLongToDateStr(mResponServerTime, ""));
+                LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->getCurrentServerTime()_hasGetServerTime=true_mResponServerTime==" + TimeUtils.timeLongToDateStr(mResponServerTime, ""));
                 currentServerTime = mResponServerTime + (currentSystemTime - mResponSystemTime);
             } else {
                 // 这里SharedPreferences已经存储了上一次的时间，可以从中取出
-                boolean hasInitServerTime = init(MonicatManager.getInstance().getContext(), Constants.MONICAT_SHARED_PREF)
-                        .contains(Constants.LAST_SERVER_TIME);
-                boolean hasInitSystemTime = init(MonicatManager.getInstance().getContext(), Constants.MONICAT_SHARED_PREF)
-                        .contains(Constants.LAST_SYSTEM_TIME);
+                boolean hasInitServerTime = init(MonicatManager.getInstance().getContext(), MonicatConstants.MONICAT_SHARED_PREF)
+                        .contains(MonicatConstants.LAST_SERVER_TIME);
+                boolean hasInitSystemTime = init(MonicatManager.getInstance().getContext(), MonicatConstants.MONICAT_SHARED_PREF)
+                        .contains(MonicatConstants.LAST_SYSTEM_TIME);
                 if (hasInitServerTime && hasInitSystemTime) {
-                    mResponServerTime = init(MonicatManager.getInstance().getContext(), Constants.MONICAT_SHARED_PREF)
-                            .getLong(Constants.LAST_SERVER_TIME);
-                    mResponSystemTime = init(MonicatManager.getInstance().getContext(), Constants.MONICAT_SHARED_PREF)
-                            .getLong(Constants.LAST_SYSTEM_TIME);
+                    mResponServerTime = init(MonicatManager.getInstance().getContext(), MonicatConstants.MONICAT_SHARED_PREF)
+                            .getLong(MonicatConstants.LAST_SERVER_TIME);
+                    mResponSystemTime = init(MonicatManager.getInstance().getContext(), MonicatConstants.MONICAT_SHARED_PREF)
+                            .getLong(MonicatConstants.LAST_SYSTEM_TIME);
                     currentServerTime = mResponServerTime + (currentSystemTime - mResponSystemTime);
-                    LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->getCurrentServerTime()_hasGetServerTime=false_mResponServerTime==" + TimeUtils.timeLongToDateStr(mResponServerTime, ""));
+                    LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->getCurrentServerTime()_hasGetServerTime=false_mResponServerTime==" + TimeUtils.timeLongToDateStr(mResponServerTime, ""));
                 } else {
                     mResponServerTime = System.currentTimeMillis();
                     mResponSystemTime = SystemClock.elapsedRealtime();
-                    LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->getCurrentServerTime()_hasGetServerTime=false_mResponServerTime=System.currentTimeMillis()" + TimeUtils.timeLongToDateStr(mResponServerTime, ""));
+                    LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->getCurrentServerTime()_hasGetServerTime=false_mResponServerTime=System.currentTimeMillis()" + TimeUtils.timeLongToDateStr(mResponServerTime, ""));
                     currentServerTime = mResponServerTime + (currentSystemTime - mResponSystemTime);
                     //todo 一直没有获取到服务器时间的情况，可以试着触发获取服务器时间的操作
                     requestServerTime();
@@ -97,13 +97,13 @@ public class TimecalibrationManager {
 //              Date parse = HttpDate.parse(headerDate);
 //              mResponServerTime = parse.getTime();
                 mResponServerTime = responServerTime;
-                LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->getServerTime()_mResponServerTime=" + mResponServerTime);
-                LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->getServerTime()_mResponSystemTime=" + TimeUtils.timeLongToDateStr(mResponServerTime, ""));
+                LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->getServerTime()_mResponServerTime=" + mResponServerTime);
+                LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->getServerTime()_mResponSystemTime=" + TimeUtils.timeLongToDateStr(mResponServerTime, ""));
                 hasGetServerTime = true;
-                init(MonicatManager.getInstance().getContext(), Constants.MONICAT_SHARED_PREF)
-                        .putLong(Constants.LAST_SERVER_TIME, mResponServerTime);
-                init(MonicatManager.getInstance().getContext(), Constants.MONICAT_SHARED_PREF)
-                        .putLong(Constants.LAST_SYSTEM_TIME, mResponSystemTime);
+                init(MonicatManager.getInstance().getContext(), MonicatConstants.MONICAT_SHARED_PREF)
+                        .putLong(MonicatConstants.LAST_SERVER_TIME, mResponServerTime);
+                init(MonicatManager.getInstance().getContext(), MonicatConstants.MONICAT_SHARED_PREF)
+                        .putLong(MonicatConstants.LAST_SYSTEM_TIME, mResponSystemTime);
             }
         }
     }
@@ -112,8 +112,8 @@ public class TimecalibrationManager {
      * 请求一下服务器，只是为了获取服务器的时间
      */
     private void requestServerTime() {
-        LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->requestServerTime()");
-        String url = Constants.SERVER_HOST + Constants.SESSION_STATISTICS;
+        LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->requestServerTime()");
+        String url = MonicatConstants.SERVER_HOST + MonicatConstants.SESSION_STATISTICS;
         BaseOkHttpClient.newBuilder()
                 .get()
                 .url(url)
@@ -121,17 +121,17 @@ public class TimecalibrationManager {
                 .enqueue(new BaseCallBack() {
                     @Override
                     public void onSuccess(Object o) {
-                        LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->requestServerTime()_onSuccess()");
+                        LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->requestServerTime()_onSuccess()");
                     }
 
                     @Override
                     public void onError(int code) {
-                        LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->requestServerTime()_onError()=" + code);
+                        LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->requestServerTime()_onError()=" + code);
                     }
 
                     @Override
                     public void onFailure(Call call, IOException e) {
-                        LogUtils.d(Constants.SDK_NAME, "TimecalibrationManager-->requestServerTime()_onFailure()=" + e.toString());
+                        LogUtils.d(MonicatConstants.SDK_NAME, "TimecalibrationManager-->requestServerTime()_onFailure()=" + e.toString());
                     }
                 });
     }

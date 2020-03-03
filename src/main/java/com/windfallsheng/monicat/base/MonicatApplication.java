@@ -99,7 +99,7 @@ package com.windfallsheng.monicat.base;
  * Returns the application instance
  *//*
     public static Context getContext() {
-        Context context = MonicatManager.getInstance().getConfig().context;
+        Context context = MonicatManager.getInstance().getMonicatConfig().context;
         *//**
  *  使用 {@link MonicatApplication} 的监听和 {@link SwitchEventManager}的监听
  *  是有不同的用法，所以这里去判断返回
@@ -147,7 +147,7 @@ package com.windfallsheng.monicat.base;
         synchronized (this) {
             if (mSwitchEventObservers != null && mSwitchEventObservers.size() > 0) {
                 for (SwitchEventObserver switchEventObserver : mSwitchEventObservers) {
-                    switchEventObserver.switchEventChanged(switchEvent);
+                    switchEventObserver.handleAppStatusChanged(switchEvent);
                 }
             }
         }

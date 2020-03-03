@@ -3,9 +3,9 @@ package com.windfallsheng.monicat.db.service;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 
-import com.windfallsheng.monicat.db.dao.AppStartupDaoImpl;
+import com.windfallsheng.monicat.db.dao.SessionInfoDaoImpl;
 import com.windfallsheng.monicat.db.dao.DeviceInfoDaoImpl;
-import com.windfallsheng.monicat.db.sqlitehelper.StatisticsSQLiteHelper;
+import com.windfallsheng.monicat.db.sqlite.StatisticsSQLiteHelper;
 import com.windfallsheng.monicat.model.DeviceInfo;
 import com.windfallsheng.monicat.model.ParamMap;
 
@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Author: lzsheng
  * <p>
  * Description: 应用启动数据本地数据库的业务操作类，
- * 调用{@link AppStartupDaoImpl} 中对表的CRUD操作，完成必要的业务逻辑
+ * 调用{@link SessionInfoDaoImpl} 中对表的CRUD操作，完成必要的业务逻辑
  * <p>
  * Version:
  */
@@ -37,7 +37,7 @@ public class DeviceInfoService implements IBaseService<DeviceInfo> {
     public static IBaseService getInstance(Context context) {
         sDeviceInfoDaoImpl = DeviceInfoDaoImpl.getInstance(context);
         if (instance == null) {
-            synchronized (AppStartupDaoImpl.class) {
+            synchronized (SessionInfoDaoImpl.class) {
                 if (instance == null) {
                     instance = new DeviceInfoService();
                 }

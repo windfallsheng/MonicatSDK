@@ -14,6 +14,6 @@ public interface UploadDataObserver {
     /**
      * 通知开始上传数据的处理
      */
-    void startUploadData();
+    void uploadData();
 
 }

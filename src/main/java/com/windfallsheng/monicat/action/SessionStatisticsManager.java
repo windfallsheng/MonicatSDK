@@ -1,24 +1,24 @@
 package com.windfallsheng.monicat.action;
 
+import android.app.Activity;
+import android.app.Application;
+import android.os.Bundle;
+
 import com.google.gson.Gson;
-import com.windfallsheng.monicat.base.Configuration;
-import com.windfallsheng.monicat.command.Constants;
-import com.windfallsheng.monicat.command.UploadStrategy;
+import com.windfallsheng.monicat.common.MonicatConstants;
 import com.windfallsheng.monicat.db.service.DeviceInfoService;
 import com.windfallsheng.monicat.db.service.SessionStatisticsService;
-import com.windfallsheng.monicat.db.sqlitehelper.StatisticsSQLiteHelper;
-import com.windfallsheng.monicat.listener.BatchDataChangeListener;
-import com.windfallsheng.monicat.listener.SwitchEventObserver;
-import com.windfallsheng.monicat.listener.UploadDataObserver;
-import com.windfallsheng.monicat.model.AppStartupEntity;
+import com.windfallsheng.monicat.db.sqlite.StatisticsSQLiteHelper;
+import com.windfallsheng.monicat.model.SessionInfoEntity;
+import com.windfallsheng.monicat.model.BatchInfo;
 import com.windfallsheng.monicat.model.DeviceInfo;
 import com.windfallsheng.monicat.model.ParamMap;
 import com.windfallsheng.monicat.model.ResponseEntity;
-import com.windfallsheng.monicat.model.SwitchEvent;
 import com.windfallsheng.monicat.net.BaseCallBack;
 import com.windfallsheng.monicat.net.BaseOkHttpClient;
-import com.windfallsheng.monicat.utils.LogUtils;
-import com.windfallsheng.monicat.utils.TimeUtils;
+import com.windfallsheng.monicat.util.LogUtils;
+import com.windfallsheng.monicat.base.ShraredPrefManager;
+import com.windfallsheng.monicat.util.TimeUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +29,8 @@ import okhttp3.Call;
 /**
  * CreateDate: 2018/4/9.
  * <p>
- * Author: lzsheng
+ *
+ * @author lzsheng
  * <p>
  * Description: 会话统计:用于统计启动次数，启动时间和退出时间等
  * <p>
@@ -39,7 +40,7 @@ import okhttp3.Call;
  * <p>
  * 2) 应用退到后台或锁屏超过X之后再次回到前台
  * <p>
- * X秒通过{@link Configuration.Builder#setIntervalTime(int)} 设置，默认为30000ms，即30秒
+ * X秒通过{@link MonicatConfig.Builder#setSessionTimoutMillis(int)} 设置，默认为30000ms，即30秒
  * <p>
  * 主要功能方法：
  * <p>
@@ -51,166 +52,204 @@ import okhttp3.Call;
  * <p>
  * Version:
  */
-public class SessionStatisticsManager implements SwitchEventObserver, UploadDataObserver {
+class SessionStatisticsManager extends BaseStatisticsManager {
 
-    // private static SessionStatisticsManager instance = null;
-    //    private OkHttpClient mOkHttpClient;
-    private boolean hasInitFinished;       // 标识查询数据库数据总和是否执行完成
-    private BatchDataChangeListener mBatchDataChangeListener;
+    private final String TAG = "SessionStatisticsManager";
 
-    /*private SessionStatisticsManager(){
+    private long mSessionTimoutMillis;
+    private int mActivityCount;
+    private long mForegroundTime;
+    private long mBackgroundTime;
+    private boolean isForeground;
 
-    }*/
-
-   /* public static SessionStatisticsManager getInstance() {
-        if (instance == null) {
-            instance = new SessionStatisticsManager();
-        }
-        return instance;
-    }*/
-
-    public void setBatchDataChangeListener(BatchDataChangeListener batchDataChangeListener) {
-        mBatchDataChangeListener = batchDataChangeListener;
+    /**
+     * 在构造方法里注册Activity生命周期回调；
+     *
+     * @param application
+     */
+    public SessionStatisticsManager(Application application) {
+        registerActivityLifecycleCallbacks(application);
     }
 
     /**
-     * 初始化一些数据；
-     * 查询本地数据库中的数据总和；
+     * 处理APP启动的情况；
      */
-    public void initBatchData() {
-        UploadStrategy uploadStrategy = MonicatManager.getInstance().getConfig().uploadStrategy;
-        if (uploadStrategy == UploadStrategy.BATCH) {
-            hasInitFinished = false;
+    public void handleAppLaunch() {
+        LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppLaunch#isForeground=" + isForeground +
+                ", mForegroundTime=" + TimeUtils.timeLongToDefaultDateStr(mForegroundTime) +
+                ", mBackgroundTime=" + TimeUtils.timeLongToDefaultDateStr(mBackgroundTime));
+        SessionInfoEntity sessionInfo = new SessionInfoEntity();
+        sessionInfo.setUploadeStatus(MonicatConstants.UPLOADABLE);
+        sessionInfo.setTriggeringTime(System.currentTimeMillis());
+        sessionInfo.setSessionType(MonicatConstants.APP_LAUNCH);
+        int primaryKeyId = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext()).save(sessionInfo);
+        LogUtils.i(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppLaunch#Add session succeed!");
+
+        // TODO: 2020/2/4 查询上一次退到后台记录 修改为退出状态，
+        if (mBackgroundTime <= 0) {
+            // 如果正常的启动应用时，要修改上一次的启动记录为退出，因为非正常退出时，上一条的记录无法标识为退出应用，需要在这里现修改一次
+            ParamMap conditionQuery = new ParamMap()// 添加数据库查询条件
+                    .setAndMap(StatisticsSQLiteHelper.COLUMN_SESSION_TYPE, MonicatConstants.APP_BACKGROUND);
+            ParamMap conditionUpdate = new ParamMap()// 添加数据库查询条件
+                    .setUpdateMap(StatisticsSQLiteHelper.COLUMN_SESSION_TYPE, MonicatConstants.APP_EXIT);
+            SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext())
+                    .updataAdjacentData(primaryKeyId, conditionUpdate, conditionQuery, MonicatConstants.QUERY_DATA_NEXT);
+            // 删除不必要的数据,比如已经上传过的数据、后台状态时存储的数据
             ParamMap paramMap = new ParamMap()// 添加数据库查询条件
-                    .setOrMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_EXIT)
-                    .setOrMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_RUNNING)
-                    .setOrMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_STARTUP)
-                    .setAndMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.NOT_UPLOADED)
-                    .setOrderDescMap(StatisticsSQLiteHelper.COLUMN_STARTUP_ID);
-            int batchCount = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext())
-                    .queryCountByMap(paramMap);
-            notifyBatchDataChanged(batchCount);
-            hasInitFinished = true;
+                    .setOrMap(StatisticsSQLiteHelper.COLUMN_UPLOADE_STATUS, MonicatConstants.UPLOADED)
+                    .setOrMap(StatisticsSQLiteHelper.COLUMN_SESSION_TYPE, MonicatConstants.APP_BACKGROUND);
+            SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext()).deleteByMap(paramMap);
         }
     }
 
-    @Override
-    public void switchEventChanged(SwitchEvent switchEvent) {
-//        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange_switchEvent==" + switchEvent);
-//        List<AppStartupEntity> startupNumEntities = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext())
-//                .queryAllByMap(null);
-//        LogUtils.d(Constants.SDK_NAME, "Monicat:startupNumEntities==" + startupNumEntities);
-        int activityCount = switchEvent.getActivityCount();
-        long foregroundTime = switchEvent.getForegroundtTime();
-        long backgroundTime = switchEvent.getBackgroundTime();
-        boolean isForeground = switchEvent.isForeground();
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_activityCount==" + activityCount);
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_isForeground==" + isForeground);
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_foregroundTime=="
-                + TimeUtils.timeLongToDateStr(foregroundTime, ""));
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_backgroundTime=="
-                + TimeUtils.timeLongToDateStr(backgroundTime, "")); // 0 = 1970-01-01 08:00:00
-        UploadStrategy uploadStrategy = MonicatManager.getInstance().getConfig().uploadStrategy;
-        long timeInterval = MonicatManager.getInstance().getConfig().intervalTime;
-
-        // 应用切换到后台时activityCount=0，切换到前台时activityCount=1;
-        // 如果只判断(foregroundTime - backgroundTime)，是不准确的，如果另外打开新Activity后，它的backgroundTime也是0，如果这时把这个Activity退出，
-        // 也会满足这个判断条件，导致启动次数次数有误
-        if (activityCount == 1 && (foregroundTime - backgroundTime) >= timeInterval) {// 某个Activity刚启动应用时backgroundTime为0
-            LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_TimeInterval great than or equal to[ " + timeInterval + " ]milliseconds.\n");
-            AppStartupEntity startupNumEntity = new AppStartupEntity();
-            startupNumEntity.setHasUploaded(Constants.NOT_UPLOADED);
-            startupNumEntity.setStartupTime(foregroundTime);
-            if (backgroundTime == 0) {// 某个Activity刚启动应用时backgroundTime为0
-                startupNumEntity.setStartupType(Constants.APP_STARTUP);
-            } else {
-                startupNumEntity.setStartupType(Constants.APP_RUNNING);
+    private void registerActivityLifecycleCallbacks(Application application) {
+        application.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+            @Override
+            public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+//                String activityName = activity.getClass().getName();
+//                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivityCreated#activityName==" + activityName);
             }
-            int primaryKeyId = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext()).save(startupNumEntity);
+
+            @Override
+            public void onActivityStarted(Activity activity) {
+//                String activityName = activity.getClass().getName();
+//                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivityStarted#activityName==" + activityName);
+            }
+
+            @Override
+            public void onActivityResumed(Activity activity) {
+                mActivityCount++;
+                String activityName = activity.getClass().getName();
+                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivityResumed#mActivityCount=" + mActivityCount +
+                        ", activityName=" + activityName);
+                if (mActivityCount > 0) {
+                    // 此时表明应用在前台
+                    mForegroundTime = System.currentTimeMillis();
+                    isForeground = true;
+//            foregroundtTime = TimecalibrationManager.getInstance().getCurrentServerTime();
+                    handleAppforeground();
+                }
+                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivityResumed#isForeground=" + isForeground +
+                        ", mForegroundTime=" + TimeUtils.timeLongToDefaultDateStr(mForegroundTime));
+            }
+
+            @Override
+            public void onActivityPaused(Activity activity) {
+                mActivityCount--;
+                String activityName = activity.getClass().getName();
+                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivityPaused#mActivityCount=" + mActivityCount + ", activityName=" + activityName);
+                if (mActivityCount == 0) {
+                    // 此时表明应用在后台
+                    mBackgroundTime = System.currentTimeMillis();
+                    isForeground = false;
+//            mBackgroundTime = TimecalibrationManager.getInstance().getCurrentServerTime();
+                    handleAppBackground();
+                }
+                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivityPaused#isForeground=" + isForeground +
+                        ", mBackgroundTime=" + TimeUtils.timeLongToDefaultDateStr(mBackgroundTime));
+            }
+
+            @Override
+            public void onActivityStopped(Activity activity) {
+//                String activityName = activity.getClass().getName();
+//                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivityStopped#activityName==" + activityName);
+            }
+
+            @Override
+            public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
+//                String activityName = activity.getClass().getName();
+//                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivitySaveInstanceState#activityName==" + activityName);
+            }
+
+            @Override
+            public void onActivityDestroyed(Activity activity) {
+//                String activityName = activity.getClass().getName();
+//                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:onActivityDestroyed#activityName==" + activityName);
+            }
+        });
+    }
+
+    private void handleAppforeground() {
+        LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppforeground#mActivityCount=" + mActivityCount +
+                ", isForeground=" + isForeground + ", mForegroundTime=" +
+                // 0 = 1970-01-01 08:00:00
+                TimeUtils.timeLongToDefaultDateStr(mForegroundTime) + ", mBackgroundTime=" + TimeUtils.timeLongToDefaultDateStr(mBackgroundTime));
+        if (mSessionTimoutMillis == 0) {
+            mSessionTimoutMillis = MonicatManager.getInstance().getMonicatConfig().sessionTimoutMillis;
+        }
+        // 应用切换到后台时activityCount=0，切换到前台时activityCount=1;
+        // 如果只判断(mForegroundTime - mBackgroundTime)，是不准确的，如果另外打开新Activity后，它的backgroundTime也是0，如果这时把这个Activity退出，
+        // 也会满足这个判断条件，导致启动次数次数有误，Activity刚启动应用时backgroundTime为0
+        if (mActivityCount == 1 && mBackgroundTime > 0 && (mForegroundTime - mBackgroundTime) >= mSessionTimoutMillis) {
+            LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppforeground#mSessionTimoutMillis great than or equal to[ " + mSessionTimoutMillis + " ]milliseconds.\n");
+            SessionInfoEntity sessionInfo = new SessionInfoEntity();
+            sessionInfo.setUploadeStatus(MonicatConstants.UPLOADABLE);
+            sessionInfo.setTriggeringTime(mForegroundTime);
+            sessionInfo.setSessionType(MonicatConstants.APP_RESTART);
+            int primaryKeyId = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext()).save(sessionInfo);
+            LogUtils.i(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppforeground#Add session succeed!");
             if (primaryKeyId > 0) {
-                LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_" +
+                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppforeground#" +
                         "Foreground data inserted into database successfully.");
-                startupNumEntity.setStartupId(primaryKeyId); // 注入本地数据库存储的主键ID，在某些功能需求上需要传递给后台，来判断本条是否上传传成功
-                if (backgroundTime <= 0) {
-                    // 如果正常的启动应用时，要修改上一次的启动记录为退出，因为非正常退出时，上一条的记录无法标识为退出应用，需要在这里现修改一次
-                    ParamMap conditionQuery = new ParamMap()// 添加数据库查询条件
-                            .setAndMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_BACKGROUND);
-                    ParamMap conditionUpdate = new ParamMap()// 添加数据库查询条件
-                            .setUpdateMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_EXIT);
-                    SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext())
-                            .updataAdjacentData(primaryKeyId, conditionUpdate, conditionQuery, Constants.QUERY_DATA_NEXT);
-                    // 删除不必要的数据,比如已经上传过的数据、后台状态时存储的数据
-                    ParamMap paramMap = new ParamMap()// 添加数据库查询条件
-                            .setOrMap(StatisticsSQLiteHelper.COLUMN_HAS_UPLOADED, Constants.HAS_UPLOADED)
-                            .setOrMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_BACKGROUND);
-                    SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext()).deleteByMap(paramMap);
-                }
-                LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_" +
-                        "hasInitFinished==" + hasInitFinished);
-                // 是判断是否是批量上传时，先初始化mBatchCount值，存储成功一条就++，不必每次都从数据库查询
-                if (uploadStrategy == UploadStrategy.BATCH && hasInitFinished) {// 当初始化执行完成之后，再执行新增数据的逻辑
-                    // 新增一条数据成功时，传递参数值为1;
-                    notifyBatchDataChanged(1);
-                } else if (uploadStrategy == UploadStrategy.INSTANT) {
-                    // todo 直接传startupNumEntity
-                    LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_INSTANT");
-                    uploadSessionInfos();
-                }
+                sessionInfo.setSessionId(primaryKeyId); // 注入本地数据库存储的主键ID，在某些功能需求上需要传递给后台，来判断本条是否上传传成功
+                //
+                handleStatisticsByStrategy();
             } else {
-                LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_" +
+                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppforeground#" +
                         "Foreground data insert database failed.");
             }
-        } else {// 应用切换到后台时activityCount=0，切换到前台时activityCount=1;
-            LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_TimeInterval less than[ " + timeInterval + " ]milliseconds.\n");
-            // 切换到后台的数据也在存储，在需要的时候使用，当前的使用是为了在非正常退出后，再次进来时把上次的后台状态改为退出应用状态
-            if (activityCount == 0) {
-                AppStartupEntity startupNumEntity = new AppStartupEntity();
-                startupNumEntity.setHasUploaded(Constants.NOT_UPLOADED);
-                startupNumEntity.setStartupTime(foregroundTime);
-                startupNumEntity.setStartupType(Constants.APP_BACKGROUND);
-                int primaryKeyId = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext()).save(startupNumEntity);
-                if (primaryKeyId > 0) {
-                    LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_" +
-                            "Background data inserted into database successfully.");
-                } else {
-                    LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->switchEventChange()_" +
-                            "Background data insert database failed.");
-                }
+        }
+    }
+
+    private void handleAppBackground() {
+        // 应用切换到后台时activityCount=0，切换到前台时activityCount=1;
+        // 切换到后台的数据也在存储，在需要的时候使用，当前的使用是为了在非正常退出后，再次进来时把上次的后台状态改为退出应用状态
+        if (mActivityCount == 0) {
+            SessionInfoEntity sessionInfo = new SessionInfoEntity();
+            sessionInfo.setUploadeStatus(MonicatConstants.UPLOADABLE);
+            sessionInfo.setTriggeringTime(mForegroundTime);
+            sessionInfo.setSessionType(MonicatConstants.APP_BACKGROUND);
+            int primaryKeyId = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext()).save(sessionInfo);
+            if (primaryKeyId > 0) {
+                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppBackground#" +
+                        "Background data inserted into database successfully.");
+            } else {
+                LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:handleAppBackground#" +
+                        "Background data insert database failed.");
             }
         }
     }
 
     @Override
-    public void startUploadData() {
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->startUploadData()");
-//        ParamMap paramMap = new ParamMap()// 添加数据库查询条件
-//                .setOrMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_EXIT)
-//                .setOrMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_RUNNING)
-//                .setOrMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.APP_STARTUP)
-//                .setAndMap(StatisticsSQLiteHelper.COLUMN_STARTUP_TYPE, Constants.NOT_UPLOADED)
-//                .setOrderDescMap(StatisticsSQLiteHelper.COLUMN_STARTUP_ID);
-//        List<AppStartupEntity> startupNumEntities = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext())
-//                .queryAllByMap(paramMap);
-        uploadSessionInfos();
+    public void uploadData() {
+        LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:uploadData");
+        uploadCacheData();
     }
 
-    /**
-     * 回调 {@link MonicatManager#onBatchDataChanged(int)}方法
-     *
-     * @param batchCount
-     * @see MonicatManager#onBatchDataChanged
-     */
-    private void notifyBatchDataChanged(int batchCount) {
-        if (batchCount > 0 && mBatchDataChangeListener != null) {
-            mBatchDataChangeListener.onBatchDataChanged(batchCount);
-        }
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->notifyBatchDataChanged()_batchCount==" + batchCount);
+    @Override
+    int queryCacheTotalCount() {
+        ParamMap paramMap = new ParamMap()// 添加数据库查询条件
+                .setOrMap(StatisticsSQLiteHelper.COLUMN_SESSION_TYPE, MonicatConstants.APP_EXIT)
+                .setOrMap(StatisticsSQLiteHelper.COLUMN_SESSION_TYPE, MonicatConstants.APP_LAUNCH)
+                .setOrMap(StatisticsSQLiteHelper.COLUMN_SESSION_TYPE, MonicatConstants.APP_RESTART)
+                .setAndMap(StatisticsSQLiteHelper.COLUMN_SESSION_TYPE, MonicatConstants.UPLOADABLE)
+                .setOrderDescMap(StatisticsSQLiteHelper.COLUMN_SESSION_ID);
+        int totalCount = SessionStatisticsService.getInstance(MonicatManager.getInstance().getContext())
+                .queryCountByMap(paramMap);
+        return totalCount;
+    }
+
+    @Override
+    BatchInfo newBatchInfo(int count) {
+        return new BatchInfo(SessionStatisticsManager.class.getName(), count);
     }
 
     /**
      * 上传启动数据到服务器
      */
-    private void uploadSessionInfos() {
+    @Override
+    void uploadCacheData() {
+        // TODO: 2020/2/6 查询对应表中的数据
         int versionCode = ShraredPrefManager.getInstance(MonicatManager.getInstance().getContext()).getAppVersionCode();
         ParamMap paramMap = new ParamMap()// 添加数据库查询条件
                 .setOrderAscMap(StatisticsSQLiteHelper.COLUMN_DEVICE_INFO_ID);
@@ -219,10 +258,8 @@ public class SessionStatisticsManager implements SwitchEventObserver, UploadData
         if (deviceInfos != null && deviceInfos.size() > 0) {
             deviceUniqueId = deviceInfos.get(0).getDeviceUniqueId();
         }
-        String url = Constants.SERVER_HOST + Constants.SESSION_STATISTICS;
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->uploadSessionInfos()_url=" + url);
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->uploadSessionInfos()_deviceUniqueId=" + deviceUniqueId);
-        LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->uploadSessionInfos()_versionNumber=" + versionCode);
+        String url = MonicatConstants.SERVER_HOST + MonicatConstants.SESSION_STATISTICS;
+        LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:uploadCacheData#url=" + url);
 
         BaseOkHttpClient.newBuilder()
                 .addParam("userId", deviceUniqueId)
@@ -234,12 +271,12 @@ public class SessionStatisticsManager implements SwitchEventObserver, UploadData
                 .enqueue(new BaseCallBack() {
                              @Override
                              public void onSuccess(Object o) {
-                                 LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->uploadSessionInfos()_onSuccess()=" + o.toString());
+                                 LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:uploadCacheData#onSuccess=" + o.toString());
                                  //{"rt":0,"rtInfo":"正确","data":null}
                                  Gson gson = new Gson();
                                  ResponseEntity responseEntity = gson.fromJson(o.toString(), ResponseEntity.class);
                                  if (responseEntity.getRt() == 0) {
-                                     LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->uploadSessionInfos()_Upload APP startup infos success! \nSessionStatisticsManager-->responseEntity.msg=" + responseEntity.getMsg());
+                                     LogUtils.d(MonicatConstants.SDK_NAME, "SessionStatisticsManager-->uploadSessionInfos()_Upload APP startup infos success! \nSessionStatisticsManager-->responseEntity.msg=" + responseEntity.getMsg());
                                      // TODO: 2018/5/7 修改本地数据库中缓存数据的上传状态，改为已上传 Constants.HAS_UPLOADED
 
                                  } else {
@@ -249,17 +286,17 @@ public class SessionStatisticsManager implements SwitchEventObserver, UploadData
 
                              @Override
                              public void onError(int code) {
-                                 LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->uploadSessionInfos()_onError()=" + code);
+                                 LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:uploadCacheData#onError=" + code);
                              }
 
                              @Override
                              public void onFailure(Call call, IOException e) {
-                                 LogUtils.d(Constants.SDK_NAME, "SessionStatisticsManager-->uploadSessionInfos()_onFailure()=" + e.toString());
+                                 LogUtils.d(MonicatConstants.SDK_NAME, TAG + ":::method:uploadCacheData#onFailure=" + e.toString());
                              }
                          }
                 );
 
-//        Request request = new Request.Builder().url(MonicatManager.getInstance().getConfig().mUrl).build();
+//        Request request = new Request.Builder().url(MonicatManager.getInstance().getMonicatConfig().mUrl).build();
 //        mOkHttpClient.newCall(request).enqueue(new Callback() {
 //            @Override
 //            public void onFailure(Call call, IOException e) {
@@ -308,7 +345,7 @@ public class SessionStatisticsManager implements SwitchEventObserver, UploadData
 //                }
 //            }
 //        });
-
     }
+
 
 }

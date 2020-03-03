@@ -1,15 +1,17 @@
 package com.windfallsheng.monicat.action;
 
+import com.windfallsheng.monicat.base.UploadStrategy;
 import com.windfallsheng.monicat.common.MonicatConstants;
+import com.windfallsheng.monicat.listener.BatchDataChangeListener;
+import com.windfallsheng.monicat.listener.UploadDataObserver;
 import com.windfallsheng.monicat.model.BatchInfo;
-import com.windfallsheng.monicat.model.PageInfoEntity;
+import com.windfallsheng.monicat.model.EventInfoEntity;
+import com.windfallsheng.monicat.model.Properties;
 import com.windfallsheng.monicat.net.BaseCallBack;
 import com.windfallsheng.monicat.net.BaseOkHttpClient;
 import com.windfallsheng.monicat.util.LogUtils;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import okhttp3.Call;
 
@@ -19,84 +21,34 @@ import okhttp3.Call;
  * <p>
  * Author: lzsheng
  * <p>
- * Description: 页面统计:标记页面访问的开始或者结束；
- * 本地数据的缓存；
- * <p>
- * 数据的上传；
- * <p>
- * 作为观察者，监听{@link SwitchEventManager} 每个activity生命周期变化；
- * 作为观察者，监听{@link MonicatManager#notifyUploadData()} 发出的通知并上报数据，或者根据上传数据的即时上报策略上传数据；
+ * Description: 用户数据统计；
  * <p>
  * Version:
  */
-class PageStatisticsManager extends BaseStatisticsManager {
+class UserStatisticsManager extends BaseStatisticsManager {
 
-    private Map<String, String> mCachePages;  // 存放注册了记录页面打开状态的activity的全路径名称
-
-    /**
-     * 添加到记录页面打开状态的activity的全路径名称的集合中
-     *
-     * @param className
-     * @param pageName
-     */
-    public void registerPage(String className, String pageName) {
-        if (mCachePages == null) {
-            mCachePages = new ConcurrentHashMap<>();
-        }
-        if (!mCachePages.containsKey(className)) {
-            mCachePages.put(className, pageName);
-        }
-        LogUtils.d(MonicatConstants.SDK_NAME, "PageStatisticsManager-->addPage()_mPageMaps==" + mCachePages.toString());
-    }
-
-    /**
-     * 从记录页面打开状态的activity的全路径名称的集合中移除
-     *
-     * @param className
-     */
-    public void unregisterPage(String className) {
-        if (mCachePages != null && mCachePages.containsKey(className)) {
-            mCachePages.remove(className);
-        }
-    }
-
-    /**
-     * 获取记录页面打开状态的activity的全路径名称的集合
-     *
-     * @return
-     */
-    public Map<String, String> getCachePages() {
-        return mCachePages;
-    }
-
-    /**
-     * 清除记录页面打开状态的activity的全路径名称的集合
-     */
-    public void clearPage() {
-        if (mCachePages != null && mCachePages.size() > 0) {
-            mCachePages.clear();
-        }
-    }
-
-    /**
-     * 保存数据到数据库，并且根据上传策略完成必要的逻辑处理
-     *
-     * @param className
-     * @param pageName
-     * @param openOrClose
-     */
-    public void savePageInfo(String className, String pageName, int openOrClose) {
-        synchronized (this) {
-            PageInfoEntity pageInfoEntity = new PageInfoEntity(className, pageName,
-                    TimecalibrationManager.getInstance().getCurrentServerTime(), openOrClose, MonicatConstants.UPLOADABLE);
-            LogUtils.d(MonicatConstants.SDK_NAME, "PageStatisticsManager-->savePageInfos()_pageInfoEntity==" + pageInfoEntity);
+    public void userRegister(String userAccount, long triggeringTime, Properties properties) {
 
 //      TODO: 2018/5/9 保存到本地数据库中
-            // …………
-        }
+        // …………eventInfoEntity的properties属性可直接转为json串存入数据库
 
         handleStatisticsByStrategy();
+    }
 
+    public void userLogin(String userAccount, long triggeringTime, Properties properties) {
+
+//      TODO: 2018/5/9 保存到本地数据库中
+        // …………eventInfoEntity的properties属性可直接转为json串存入数据库
+
+        handleStatisticsByStrategy();
+    }
+
+    public void userLogout(String userAccount, long triggeringTime, Properties properties) {
+
+//      TODO: 2018/5/9 保存到本地数据库中
+        // …………eventInfoEntity的properties属性可直接转为json串存入数据库
+
+        handleStatisticsByStrategy();
     }
 
     @Override
@@ -113,7 +65,7 @@ class PageStatisticsManager extends BaseStatisticsManager {
 
     @Override
     BatchInfo newBatchInfo(int count) {
-        return new BatchInfo(PageStatisticsManager.class.getName(), count);
+        return new BatchInfo(UserStatisticsManager.class.getName(), count);
     }
 
     /**
@@ -158,6 +110,5 @@ class PageStatisticsManager extends BaseStatisticsManager {
                          }
                 );
     }
-
 
 }
