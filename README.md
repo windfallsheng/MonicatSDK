@@ -7,38 +7,41 @@ public class MySupportApplication extends Application {
 	@Override
     	public void onCreate() {
         	super.onCreate();
-		// ( 1 ) 初始化配置参数
-	Configuration config = new Configuration
-			// 传入Application的Context实例
-              .Builder(this)
-		// 设置是否打开启动次数统计功能，默认为true
-        	.setOnStartNum(true)
-		// 设置前后台切换的间隔时间（单位：毫秒）最大值，默认为30s
-		.setIntervalTime(5  *  1000)
+		 // 使用默认配置参数；
+//        MonicatManager.getInstance()
+//                .initConfig(new MonicatConfig.Builder(this).build())
+//                .monitor();
+        // ( 1 ) 初始化配置参数；
+        MonicatConfig config = new MonicatConfig.Builder(this)
+                // 传入Application的Context实例
+                // 设置开启debug模式，输出打印日志，默认为null
+                // 没有设置时，会根据外层项目app的模式（debug or release）模式来选择
+                .debugEnable(true)
+                // 是否关闭统计功能；
+                //.enableMonicat(false)
+                // 设置是否打开启动次数统计功能，默认为true
+                .enableSessionStatistics(true)
+                // 设置前后台切换的间隔时间（单位：毫秒）最大值，默认为30s
+                .setSessionTimoutMillis(5 * 1000)
                 // 设置数据上报策略，默认为INSTANT 即时上报数据
-		.setUploadStrategy(UploadStrategy.INSTANT)
-		// 设置数据上报策略为定时上报
-		//.setUploadStrategy(UploadStrategy.TIMED_TASK)
-		// 设置定时上报 时的小时和分钟，小时格式：大于等于0，小于24，
-		// 分钟格式：大于等于0，小于60。
+                .setUploadStrategy(UploadStrategy.INSTANT)
+                // 设置数据上报策略为定时上报
+                //.setUploadStrategy(UploadStrategy.TIMED_TASK)
+                // 设置定时上报 时的小时和分钟，小时格式：大于等于0，小于24，
+                // 分钟格式：大于等于0，小于60。
                 //.setTriggerTime(13,  42)
-		// 设置数据上报策略为间隔上报
-		//.setUploadStrategy(UploadStrategy.PERIOD)
-		// 设置间隔上报 的间隔时间（单位：毫秒），默认为30分钟，最小值为5分钟
+                // 设置数据上报策略为间隔上报
+                //.setUploadStrategy(UploadStrategy.PERIOD)
+                // 设置间隔上报 的间隔时间（单位：毫秒），默认为30分钟，最小值为5分钟
                 //.setPeriodTime(5  *  60  *  1000)
-		// 设置数据上报策略为批量上报
-		//.setUploadStrategy(UploadStrategy.BATCH)
-		// 设置批量值，默认为50条
-		//.setBatchValue(30)
-		// 设置开启debug模式，输出打印日志，默认为null
-		// 没有设置时，会根据外层项目app的模式（debug or release）模式来选择
-		//.setDebug(false)
-		.build();
-        // ( 2 ) 设置配置参数（可以在其它地方再次修改这些参数配置，详见 三、4 说明）。
-        MonicatManager.getInstance().init(config);
-	// ( 3 ) 打开Monicat的监控功能
-	MonicatManager.getInstance().monitor();
-	// 配置完成。
+                // 设置数据上报策略为批量上报
+                //.setUploadStrategy(UploadStrategy.BATCH)
+                // 设置批量值，默认为50条
+                //.setBatchValue(30)
+                .build();
+        // ( 2 ) 打开Monicat的监控功能
+        MonicatManager.getInstance().initConfig(config).monitor();
+        // 配置完成。
     }
 }
 
@@ -88,21 +91,6 @@ MonicatManager.getInstance().trackEndPage(Context context);
 MonicatManager.getInstance().trackEndPage(Context context, String pageName); 
 
 方法1代码示例：
-
-public class MainActivity extends Activity {
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-		MonicatManager.getInstance().registerPage(this);
-	或者：
-	MonicatManager.getInstance().registerPage(this, "H5页面");
-    }
-}
-
-方法2代码示例：
 
 public class MainActivity extends Activity {
 
@@ -164,44 +152,6 @@ mButtonLogin.setOnClickListener(new View.OnClickListener() {
 MonicatManager.getInstance().trackCustomBeginEvent(MainActivity.this, "button_click login事件", prop);                                                      
     }
 });
-
-4.	Configuration的动态配置问题：
-首先保证在项目的Application中，已经配置过Configuration的相关参数，之后如果在其它地方需要修改一些配置参数，可以进行动态的修改，比如：
-
-	  Configuration config = MonicatManager.getInstance().getConfig();
- config.intervalTime = 10 * 1000;
- MonicatManager.getInstance().setConfig(config);
-
-或者(推荐用此方法)按照Application中的配置步骤，再设置一次， 如：
-
-	Configuration config = new Configuration
-                .Builder(MonicatManager.getInstance().getContext())
-                .setIntervalTime(10 * 1000)
-                .build();
-        MonicatManager.getInstance().init(config);
-
-7.	扩展的其它方法说明：
-1)	调用这个方法可以手动的、一次性上传所有本地缓存数据。
-
-	MonicatManager.getInstance().notifyUploadData();
-
-2)	如果设置了打开启动次数统计功能（默认设置也是 true），如：
-	
-	Configuration config = new Configuration
-                        .Builder(context)
-				// 设置是否打开启动次数统计功能，默认为true
-        			.setOnStartNum(true)
-				// 其它参数配置省略
-				……………………
-				……………………
-                        .build();
-
-那么：
-
-Boolean isForeground = MonicatManager.getInstance().isForeground;
-这个方法可以得到时当前app应用是在前台( isForeground = true )还是后台( isForeground = false )；
-int appStatus = MonicatManager.getInstance().app_status;
-这个方法可以得到时当前app运行状态：1为刚启动打开应用，0为应用正在运行中(包括在前后台的情况)。
 
 
 特别说明：
